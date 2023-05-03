@@ -1,53 +1,47 @@
-//// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+contract MyToken {
+    string public name;
+    string public symbol;
+    uint8 public decimals;
+    uint256 public totalSupply;
 
-contract Marketplace is IERC721Receiver {
-    using SafeMath for uint256;
-    using SafeERC20 for IERC20;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
 
-    struct Listing {
-        address seller;
-        uint256 price;
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+
+    constructor(string memory _name, string memory _symbol, uint8 _decimals, uint256 _totalSupply) {
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+        totalSupply = _totalSupply;
+        balanceOf[msg.sender] = _totalSupply;
     }
 
-    IERC20 public token;
-    IERC721 public nft;
-    mapping (uint256 => Listing) public listings;
-
-    constructor(address _token, address _nft) {
-        token = IERC20(_token);
-        nft = IERC721(_nft);
+    function transfer(address _to, uint256 _value) public returns (bool success) {
+        require(balanceOf[msg.sender] >= _value, "Not enough balance");
+        balanceOf[msg.sender] -= _value;
+        balanceOf[_to] += _value;
+        emit Transfer(msg.sender, _to, _value);
+        return true;
     }
 
-    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
-        return this.onERC721Received.selector;
+    function approve(address _spender, uint256 _value) public returns (bool success) {
+        allowance[msg.sender][_spender] = _value;
+        emit Approval(msg.sender, _spender, _value);
+        return true;
     }
 
-    function createListing(uint256 _tokenId, uint256 _price) public {
-        require(nft.ownerOf(_tokenId) == msg.sender, "Marketplace: Only token owner can create listing");
-        require(_price > 0, "Marketplace: Price must be greater than 0");
-        nft.safeTransferFrom(msg.sender, address(this), _tokenId);
-        listings[_tokenId] = Listing(msg.sender, _price);
-    }
-
-    function buyListing(uint256 _tokenId) public {
-        Listing memory listing = listings[_tokenId];
-        require(listing.seller != address(0), "Marketplace: Listing does not exist");
-        require(token.balanceOf(msg.sender) >= listing.price, "Marketplace: Insufficient balance");
-        token.safeTransferFrom(msg.sender, listing.seller, listing.price);
-        nft.safeTransferFrom(address(this), msg.sender, _tokenId);
-        delete listings[_tokenId];
-    }
-
-    function withdrawListing(uint256 _tokenId) public {
-        require(listings[_tokenId].seller == msg.sender, "Marketplace: Only seller can withdraw listing");
-        nft.safeTransferFrom(address(this), msg.sender, _tokenId);
-        delete listings[_tokenId];
+    function transferFrom(address _from, address _to, uint256 _value) public returns (bool success) {
+        require(_value <= balanceOf[_from], "Not enough balance");
+        require(_value <= allowance[_from][msg.sender], "Not enough allowance");
+        balanceOf[_from] -= _value;
+        balanceOf[_to] += _value;
+        allowance[_from][msg.sender] -= _value;
+        emit Transfer(_from, _to, _value);
+        return true;
     }
 }
